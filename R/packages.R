@@ -44,6 +44,8 @@ suppressPackageStartupMessages({
   library(blavaan)
   library(dplyr)
   library(tibble)
+  library(ggplotify)
+  library(cowplot)
   
   library(marinelifehistdata)
   

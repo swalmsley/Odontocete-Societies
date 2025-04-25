@@ -47,10 +47,34 @@ inline <- function(fit, var, p, CI) {
   return(output)
   
 }
-# fit <- tar_read(m3)
+# fit <- tar_read(m1q)
+# var <- 'scalelifespan_Post.Mean_F'
+# p = 0.9
+# CI = FALSE
+
+
+
+# In-line effect given samples --------------------------------------------
+inline_simple <- function(samples, p, CI) {
+  
+  est <- mean(samples)
+  low <- PI(samples, prob=p)[1]
+  high <- PI(samples, prob=p)[2]
+  
+  # report credible interval
+  if (CI) output <- paste(paste(format_number(est), ', ', sep = ''), 'CI ', paste(format_number(low), format_number(high), sep = ' -- '), sep = '')
+  
+  # report probability of directional effect
+  # if (!CI) output <- paste(paste(format_number(est), ', ', sep = ''), p_dir <- paste('pd = ', round(as.numeric(p_direction(fit, parameters = paste(var)))*100,1), '%',sep=''), sep = '')
+  
+  return(output)
+  
+}
+# samples <- as_draws_df(tar_read(psQ_repeat))$sd_phylo__Intercept
 # var <- 'numSamplingPeriodsByYear'
 # p = 0.9
 # CI = FALSE
+
 
 
 
@@ -76,7 +100,6 @@ format_number <- function(num) {
 ###########################################################################
 # Project-specific functions
 ###########################################################################
-
 
 
 # Custom helper to deal with cmdstanr issues on supercomputer -------------
@@ -173,12 +196,13 @@ ps_model <- function(focal_trait, data, A, repeatObs) {
 
 
 # Calculate phylogenetic signal -------------------------------------------
-phylogenetic_signal <- function (fit, species_effect) {
+phylogenetic_signal <- function (fit, repeat_obs, species_effect) {
   
   # Note: will depend on random effect structure of model in question 
   
   # With species-level random effect (in addition to phylogenetic one)
-  if (species_effect) (hyp <- paste("sd_phylo__Intercept^2 /", "(sd_phylo__Intercept^2 + sd_Species__Intercept^2 + sigma^2) = 0"))
+  if (repeat_obs & (!(species_effect))) (hyp <- paste("sd_phylo__Intercept^2 /", "(sd_phylo__Intercept^2 + sd_Species__Intercept^2 + sigma^2) = 0")) # if interested in phylo over and above species
+  if (repeat_obs & species_effect) (hyp <- paste("sd_Species__Intercept^2 /", "(sd_phylo__Intercept^2 + sd_Species__Intercept^2 + sigma^2) = 0")) # if interested in species over and above phylo
 
   # With only phylogenetic random effect
   if (!species_effect) (hyp <- "sd_phylo__Intercept^2 / (sd_phylo__Intercept^2 + sigma^2) = 0")
@@ -190,7 +214,12 @@ phylogenetic_signal <- function (fit, species_effect) {
   
 }
 # fit <- tar_read(psQ)
+# repeat_obs <- FALSE
 # species_effect <- FALSE
+
+# fit <- tar_read(psQ_repeat)
+# repeat_obs <- TRUE
+# species_effect <- TRUE
 
 
 
@@ -198,22 +227,22 @@ phylogenetic_signal <- function (fit, species_effect) {
 plot_phylogenetic_signal_ridges <- function(Q, S, Lifespan, AgeM, Length, SSD) {
   
   # calculate proportion of variance explained by phylogeny 
-  Q_samples <- phylogenetic_signal(Q, species_effect=FALSE)
+  Q_samples <- phylogenetic_signal(Q, repeat_obs=FALSE, species_effect=FALSE)
   Q_samples[, trait:='Q', ]
   
-  S_samples <- phylogenetic_signal(S, species_effect=FALSE)
+  S_samples <- phylogenetic_signal(S, repeat_obs=FALSE, species_effect=FALSE)
   S_samples[, trait:='S', ]
   
-  Lifespan_samples <- phylogenetic_signal(Lifespan, species_effect=FALSE)
+  Lifespan_samples <- phylogenetic_signal(Lifespan, repeat_obs=FALSE, species_effect=FALSE)
   Lifespan_samples[, trait:='Lifespan', ]
   
-  AgeM_samples <- phylogenetic_signal(AgeM, species_effect=FALSE)
+  AgeM_samples <- phylogenetic_signal(AgeM, repeat_obs=FALSE, species_effect=FALSE)
   AgeM_samples[, trait:='AgeM', ]
   
-  Length_samples <- phylogenetic_signal(Length, species_effect=FALSE)
+  Length_samples <- phylogenetic_signal(Length, repeat_obs=FALSE, species_effect=FALSE)
   Length_samples[, trait:='Length', ]
   
-  SSD_samples <- phylogenetic_signal(SSD, species_effect=FALSE)
+  SSD_samples <- phylogenetic_signal(SSD, repeat_obs=FALSE, species_effect=FALSE)
   SSD_samples[, trait:='SSD', ]
   
   # combine all samples into single dataframe
@@ -756,6 +785,7 @@ add.cherry <- function(tree, tip, new.tips) {
 }
 
 
+
 # Plot univariate effect from static phylogenetic model -------------------
 plot_univariate <- function(fit, traitName, ytraitName, x_lab, y_lab, ymax, color) {
   
@@ -774,14 +804,14 @@ plot_univariate <- function(fit, traitName, ytraitName, x_lab, y_lab, ymax, colo
   
   # Compute predictions
   pred <- data.table(epred_draws(fit, newdata, re_formula=NA)) # not incorporating varying effects in prediction here
-  pred_means <- pred[, .(mean_epred=mean(.epred)),by=.(get(traitName))] ###### seems to work but compare to sjplot example to confirm
+  pred_means <- pred[, .(mean_epred=mean(.epred)),by=.(get(traitName))] 
   
   # Plotting
   p <- ggplot(pred, aes(x=get(traitName), y=.epred))+
     geom_point(inherit.aes = FALSE, data=data, aes(x=get(traitName), y=get(ytraitName)), alpha=0.75, size=1.5, color='grey40')+
     stat_lineribbon(fill=col, alpha=0.1, .width=c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8, 0.9))+
     labs(x='', y=y_lab)+
-    ylim(0,ymax)+
+    # ylim(0,ymax)+
     ggtitle(x_lab)+
     theme_classic() +
     theme(axis.text=element_text(size=12),
@@ -792,11 +822,11 @@ plot_univariate <- function(fit, traitName, ytraitName, x_lab, y_lab, ymax, colo
   return(p)
   
 }
-# fit <- tar_read(m1q)
-# traitName <- 'lifespan_Post.Mean_F'
+# fit <- tar_read(m4q)
+# traitName <- 'SSD' ######
 # ytraitName <- 'Q'
 # ymax <- 0.75
-# x_lab <- 'Female Lifespan'
+# x_lab <- 'SSD'
 # y_lab <- 'Social modularity'
 # color <- 1
 
@@ -842,7 +872,7 @@ ancestral_state <- function(fit, ancestral_length_raw, colnum, var, label_positi
   
   # FOR S - posterior probability of non-homogenous relationships (0.3) and differentiated relationships (0.5)
   # p_direction(pred$anc_prediction, null = 0.3) # 0.99
-  # p_direction(pred$anc_prediction, null = 0.5) # 0.92
+  # p_direction(pred$anc_prediction, null = 0.5) # 0.95
   
   
 }
@@ -1009,6 +1039,79 @@ plot_tree_two_adjacent_traits <- function(t, data, traitName1, traitName2, flip,
 
 
 # Trait change plot -------------------------------------------------------
+trait_change_plot_exclude <- function(fit, exclude) {
+  
+  var1 <- names(fit$variables[1])
+  var2 <- names(fit$variables[2])
+  
+  lab1 <- var1
+  lab2 <- var2
+  
+  delta_theta_1 <- data.table(data.frame(coev_calculate_delta_theta(fit, response = var1, predictor=var2)))
+  delta_theta_1[,response:=var1]
+  delta_theta_1[,predictor:=var2]
+  
+  delta_theta_2 <- data.table(data.frame(coev_calculate_delta_theta(fit, response = var2, predictor=var1)))
+  delta_theta_2[,response:=var2]
+  delta_theta_2[,predictor:=var1]
+  
+  df <- rbindlist(list(delta_theta_1, delta_theta_2))
+  # order factor for consistent plotting
+  df$response <- factor(df$response, levels=c(paste(var2), paste(var1)))
+
+  # exclusions if desired for making figures for presentations
+  df <- df[predictor==exclude,X1.delta_theta:=NA,]
+  
+  # rename with nice labels for plotting
+  if (var1=='log_length_F') (lab1<-'Length (log)')
+  if (var2=='log_length_F') (lab2<-'Length (log)')
+  
+  if (var1=='length.mean_F') (lab1<-'Length')
+  if (var2=='length.mean_F') (lab2<-'Length')
+  
+  if (var1=='age.mat_F') (lab1<-'Age maturity')
+  if (var2=='age.mat_F') (lab2<-'Age maturity')
+  
+  if (var1=='lifespan_Post.Mean_F') (lab1<-'Lifespan')
+  if (var2=='lifespan_Post.Mean_F') (lab2<-'Lifespan')
+  
+  # Set up plot colors
+  plot_cols <- viridis(2, option=proj_color, begin=0.75, end=0.05)
+  if (exclude=='Q') (plot_cols <- viridis(2, option=proj_color, begin=0.05, end=0.75)) # Just for Princeton plotting
+  
+  # Plotting
+  p <- ggplot(df, aes(x=X1.delta_theta)) +
+    
+    geom_density(aes(fill=response, color=response), alpha=0.6) +
+    geom_vline(xintercept = 0, color="black", linetype='dashed', lwd=0.8) +
+    annotate("text",
+             label = bquote(bold(.(lab2) %->% .(lab1)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(p_direction(df[response == var1, X1.delta_theta]), 2))),
+             x = -Inf, y = Inf, hjust = -0.1, vjust = 2, size = 4, color = plot_cols[1]) +
+    annotate("text",
+             label = bquote(bold(.(lab1) %->% .(lab2)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(p_direction(df[response == var2, X1.delta_theta]), 2))),
+             x = -Inf, y = Inf, hjust = -0.1, vjust = 4, size = 4, color = plot_cols[2]) +
+    theme_minimal() +
+    scale_x_continuous(limits=c(-20,20)) +
+    ylim(0,0.38)+
+    scale_color_manual(values=plot_cols)+
+    scale_fill_manual(values=plot_cols)+
+        scale_size_manual(values=c(1,1,1.5)) +
+    theme_bw(base_size=14) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(), legend.position = "none") +
+    xlab(expression(paste(Delta, theta)["z"])) +
+    ylab("")
+  
+  p
+  
+}
+# fit <- tar_read(coev_Q_noTransform)
+# exclude <- 'Q'
+
+
+
+
+# Trait change plot -------------------------------------------------------
 trait_change_plot <- function(fit) {
   
   var1 <- names(fit$variables[1])
@@ -1044,7 +1147,7 @@ trait_change_plot <- function(fit) {
   
   # Set up plot colors
   plot_cols <- viridis(2, option=proj_color, begin=0.75, end=0.05)
-  
+
   # Plotting
   p <- ggplot(df, aes(x=X1.delta_theta)) +
     
@@ -1058,9 +1161,10 @@ trait_change_plot <- function(fit) {
              x = -Inf, y = Inf, hjust = -0.1, vjust = 4, size = 4, color = plot_cols[1]) +
     theme_minimal() +
     scale_x_continuous(limits=c(-20,20)) +
+    ylim(0,0.38)+
     scale_color_manual(values=plot_cols)+
     scale_fill_manual(values=plot_cols)+
-        scale_size_manual(values=c(1,1,1.5)) +
+    scale_size_manual(values=c(1,1,1.5)) +
     theme_bw(base_size=14) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.y=element_blank(),
           axis.ticks.y=element_blank(), legend.position = "none") +
@@ -1336,6 +1440,475 @@ coevolve_table <- function(object, prob=0.9, robust=FALSE) {
 # prob <- 0.9
 # robust <- FALSE
 
+
+
+# Coevolutionary flowfield plot -------------------------------------------
+# custom_coev_plot_flowfield <- function(object, var1, var2, nullclines,
+#                                        limits, var1_lab, var2_lab) {
+#   
+#   # Check for required package
+#   if (!requireNamespace("ggplotify", quietly = TRUE)) {
+#     stop("Package 'ggplotify' is needed. Please install it with install.packages('ggplotify')")
+#   }
+#   
+#   # Use ggplotify to convert the base R plot to a ggplot object
+#   p <- ggplotify::as.ggplot(function() {
+#     
+#     # get IDs for variables
+#     id_var1 <- which(names(object$variables) == var1)
+#     id_var2 <- which(names(object$variables) == var2)
+#     # get posterior draws
+#     draws <- posterior::as_draws_rvars(object$fit)
+#     # medians and median absolute deviations for all variables
+#     eta  <- apply(
+#       draws$eta[,1:object$stan_data$N_tips,], 3, posterior::rvar_median
+#     )
+#     meds <- unlist(lapply(eta, stats::median))
+#     mads <- unlist(lapply(eta, stats::mad))
+#     lowers <- meds + limits[1]*mads
+#     uppers <- meds + limits[2]*mads
+#     # get median parameter values for A and b
+#     A <- stats::median(draws$A)
+#     b <- stats::median(draws$b)
+#     # function for flow field diagram
+#     OU <- function(t, y, parameters) {
+#       dy <- numeric(2)
+#       # variable 1
+#       dy[1] <- b[id_var1]
+#       for (j in 1:length(names(object$variables))) {
+#         if (j == id_var1) {
+#           # autoregressive effect
+#           dy[1] <- dy[1] + A[id_var1,j]*y[1]
+#         } else if (j == id_var2) {
+#           # cross-lagged effect of predictor
+#           dy[1] <- dy[1] + A[id_var1,j]*y[2]
+#         } else {
+#           # cross-lagged effects of other variables held at their median values
+#           dy[1] <- dy[1] + A[id_var1,j]*meds[j]
+#         }
+#       }
+#       # variable 2
+#       dy[2] <- b[id_var2]
+#       for (j in 1:length(names(object$variables))) {
+#         if (j == id_var2) {
+#           # autoregressive effect
+#           dy[2] <- dy[2] + A[id_var2,j]*y[2]
+#         } else if (j == id_var1) {
+#           # cross-lagged effect of predictor
+#           dy[2] <- dy[2] + A[id_var2,j]*y[1]
+#         } else {
+#           # cross-lagged effects of other variables held at their median values
+#           dy[2] <- dy[2] + A[id_var2,j]*meds[j]
+#         }
+#       }
+#       return(list(dy))
+#     }
+#     # create flow field diagram
+#     suppressWarnings({
+#       OU.flowField <-
+#         phaseR::flowField(
+#           OU,
+#           xlim = c(lowers[id_var1], uppers[id_var1]),
+#           ylim = c(lowers[id_var2], uppers[id_var2]),
+#           parameters = NA,
+#           add = FALSE,
+#           xlab = "",
+#           ylab = "",
+#           points = 12,
+#           col = "grey50",
+#           xaxt = 'n',
+#           yaxt = 'n',
+#           arrow.type = "proportional",
+#           frac = 1.5,
+#           xaxs = "i",
+#           yaxs = "i",
+#           axes = FALSE,
+#           lwd = 2
+#         )
+#     })
+#     # var 1 label
+#     # graphics::mtext(
+#     #   side = 1,
+#     #   text = paste0(var1_lab, " (z-score)"),
+#     #   at = meds[id_var1],
+#     #   line = 2.5,
+#     #   cex = 1.3
+#     # )
+#     # # var 2 label
+#     # graphics::mtext(
+#     #   side = 2,
+#     #   text = paste0(var2_lab, " (z-score)"),
+#     #   at = meds[id_var2],
+#     #   line = 2.5,
+#     #   cex = 1.3
+#     # )
+#     # add nullclines to phase plane
+#     suppressWarnings({
+#       if (nullclines) {
+#         nc <-
+#           phaseR::nullclines(
+#             OU,
+#             xlim = c(lowers[id_var1], uppers[id_var1]),
+#             ylim = c(lowers[id_var2], uppers[id_var2]),
+#             parameters = NA,
+#             points = 20,
+#             axes = FALSE,
+#             col = c("#c55852","#5387b6"),
+#             add.legend = FALSE,
+#             lwd = 2
+#           )
+#       }
+#     })
+#     # add axes
+#     graphics::axis(
+#       side = 1,
+#       at = c(lowers[id_var1], meds[id_var1], uppers[id_var1]),
+#       labels =
+#         (c(lowers[id_var1], meds[id_var1], uppers[id_var1]) - meds[id_var1]) /
+#         mads[id_var1]
+#     )
+#     graphics::axis(
+#       side = 2,
+#       at = c(lowers[id_var2], meds[id_var2], uppers[id_var2]),
+#       labels =
+#         (c(lowers[id_var2], meds[id_var2], uppers[id_var2]) - meds[id_var2]) /
+#         mads[id_var2]
+#     )
+#   })
+#   
+#   p <- p + annotate("text", x = 0.525, y = -Inf, label = paste(var1_lab), vjust = -1, size = 4) +
+#     annotate("text", x = -Inf, y = 0.525, label = paste(var2_lab), hjust = -1, size = 4)
+#   
+#   return(p)
+# }
+
+
+# Coevolutionary flowfield plot (fixed version) -------------------------------------------
+custom_coev_plot_flowfield <- function(object, var1, var2, nullclines,
+                                       limits, var1_lab, var2_lab) {
+
+  # Check for required package
+  if (!requireNamespace("ggplotify", quietly = TRUE)) {
+    stop("Package 'ggplotify' is needed. Please install it with install.packages('ggplotify')")
+  }
+
+  # Use ggplotify to convert the base R plot to a ggplot object
+  p <- ggplotify::as.ggplot(function() {
+
+    # get IDs for variables
+    id_var1 <- which(names(object$variables) == var1)
+    id_var2 <- which(names(object$variables) == var2)
+    # get posterior draws
+    draws <- posterior::as_draws_rvars(object$fit)
+    # medians and median absolute deviations for all variables
+    eta  <- apply(
+      draws$eta[,1:object$stan_data$N_tips,], 3, posterior::rvar_median
+    )
+    meds <- unlist(lapply(eta, stats::median))
+    mads <- unlist(lapply(eta, stats::mad))
+    lowers <- meds + limits[1]*mads
+    uppers <- meds + limits[2]*mads
+    # get median parameter values for A and b
+    A <- stats::median(draws$A)
+    b <- stats::median(draws$b)
+    # function for flow field diagram
+    OU <- function(t, y, parameters) {
+      dy <- numeric(2)
+      # variable 1
+      dy[1] <- b[id_var1]
+      for (j in 1:length(names(object$variables))) {
+        if (j == id_var1) {
+          # autoregressive effect
+          dy[1] <- dy[1] + A[id_var1,j]*y[1]
+        } else if (j == id_var2) {
+          # cross-lagged effect of predictor
+          dy[1] <- dy[1] + A[id_var1,j]*y[2]
+        } else {
+          # cross-lagged effects of other variables held at their median values
+          dy[1] <- dy[1] + A[id_var1,j]*meds[j]
+        }
+      }
+      # variable 2
+      dy[2] <- b[id_var2]
+      for (j in 1:length(names(object$variables))) {
+        if (j == id_var2) {
+          # autoregressive effect
+          dy[2] <- dy[2] + A[id_var2,j]*y[2]
+        } else if (j == id_var1) {
+          # cross-lagged effect of predictor
+          dy[2] <- dy[2] + A[id_var2,j]*y[1]
+        } else {
+          # cross-lagged effects of other variables held at their median values
+          dy[2] <- dy[2] + A[id_var2,j]*meds[j]
+        }
+      }
+      return(list(dy))
+    }
+    # create flow field diagram
+    suppressWarnings({
+      OU.flowField <-
+        phaseR::flowField(
+          OU,
+          xlim = c(lowers[id_var1], uppers[id_var1]),
+          ylim = c(lowers[id_var2], uppers[id_var2]),
+          parameters = NA,
+          add = FALSE,
+          xlab = var1_lab,  # Set x-axis label here
+          ylab = var2_lab,  # Set y-axis label here
+          points = 12,
+          col = "black",
+          xaxt = 'n',
+          yaxt = 'n',
+          arrow.type = "proportional",
+          frac = 1.5,
+          xaxs = "i",
+          yaxs = "i",
+          axes = FALSE,
+          lwd = 1.5
+        )
+    })
+
+    # # Add axis labels directly using mtext
+    # graphics::mtext(
+    #   side = 1,
+    #   text = var1_lab,
+    #   line = 2.5,
+    #   cex = 1.3
+    # )
+    # 
+    # graphics::mtext(
+    #   side = 2,
+    #   text = var2_lab,
+    #   line = 2.5,
+    #   cex = 1.3
+    # )
+
+    # add nullclines to phase plane
+    suppressWarnings({
+      if (nullclines) {
+        nc <-
+          phaseR::nullclines(
+            OU,
+            xlim = c(lowers[id_var1], uppers[id_var1]),
+            ylim = c(lowers[id_var2], uppers[id_var2]),
+            parameters = NA,
+            points = 20,
+            axes = FALSE,
+            col = c("#c55852","#5387b6"),
+            add.legend = FALSE,
+            lwd = 2
+          )
+      }
+    })
+    # add axes
+    graphics::axis(
+      side = 1,
+      at = c(lowers[id_var1], meds[id_var1], uppers[id_var1]),
+      labels =
+        (c(lowers[id_var1], meds[id_var1], uppers[id_var1]) - meds[id_var1]) /
+        mads[id_var1]
+    )
+    graphics::axis(
+      side = 2,
+      at = c(lowers[id_var2], meds[id_var2], uppers[id_var2]),
+      labels =
+        (c(lowers[id_var2], meds[id_var2], uppers[id_var2]) - meds[id_var2]) /
+        mads[id_var2]
+    )
+
+    # Add bounding box to the plot
+    # graphics::box()
+  })
+
+  # No need for these ggplot annotations as we're using mtext now
+  # Remove these lines:
+  # p <- p + annotate("text", x = 0.525, y = -Inf, label = paste(var1_lab), vjust = -1, size = 4) +
+  #   annotate("text", x = -Inf, y = 0.525, label = paste(var2_lab), hjust = -1, size = 4)
+
+  return(p)
+}
+
+# 
+# custom_coev_plot_flowfield <- function(object, var1, var2, nullclines,
+#                                 limits, var1_lab, var2_lab) {
+#   # # stop if object is not of class coevfit
+#   # if (!methods::is(object, "coevfit")) {
+#   #   stop2(
+#   #     paste0(
+#   #       "Argument 'object' must be a fitted coevolutionary model of class ",
+#   #       "coevfit."
+#   #     )
+#   #   )
+#   # }
+#   # if (!is.character(var1) | length(var1) != 1) {
+#   #   # stop if var1 not character string of length one
+#   #   stop2("Argument 'var1' must be a character string of length one.")
+#   # } else if (!(var1 %in% names(object$variables))) {
+#   #   # stop if var1 not included in model
+#   #   stop2("Argument 'var1' must be a variable included in the fitted model.")
+#   # }
+#   # if (!is.character(var2) | length(var2) != 1) {
+#   #   # stop if var2 not character string of length one
+#   #   stop2("Argument 'var2' must be a character string of length one.")
+#   # } else if (!(var2 %in% names(object$variables))) {
+#   #   # stop if var2 not included in model
+#   #   stop2("Argument 'var2' must be a variable included in the fitted model.")
+#   # }
+#   # # stop if var1 and var2 are the same variable
+#   # if (var1 == var2) {
+#   #   stop2("Argument 'var1' and 'var2' must refer to different variables.")
+#   # }
+#   # # stop if nullclines not logical
+#   # if (!is.logical(nullclines)) {
+#   #   stop2("Argument 'nullclines' must be logical.")
+#   # }
+#   # # stop if limits is not a numeric vector of length 2
+#   # if (!(is.numeric(limits) & is.vector(limits) & length(limits) == 2)) {
+#   #   stop2("Argument 'limits' must be a numeric vector of length 2.")
+#   # }
+#   # # produce warning if there are three or more traits
+#   # if (length(object$variables) >= 3) {
+#   #   warning2(
+#   #     paste0(
+#   #       "Other traits were held constant at their median values to produce ",
+#   #       "this flowfield plot, which can potentially produce misleading ",
+#   #       "pictures of coevolutionary dynamics."
+#   #     )
+#   #   )
+#   # }
+#   # get IDs for variables
+#   id_var1 <- which(names(object$variables) == var1)
+#   id_var2 <- which(names(object$variables) == var2)
+#   # get posterior draws
+#   draws <- posterior::as_draws_rvars(object$fit)
+#   # medians and median absolute deviations for all variables
+#   eta  <- apply(
+#     draws$eta[,1:object$stan_data$N_tips,], 3, posterior::rvar_median
+#   )
+#   meds <- unlist(lapply(eta, stats::median))
+#   mads <- unlist(lapply(eta, stats::mad))
+#   lowers <- meds + limits[1]*mads
+#   uppers <- meds + limits[2]*mads
+#   # get median parameter values for A and b
+#   A <- stats::median(draws$A)
+#   b <- stats::median(draws$b)
+#   # function for flow field diagram
+#   OU <- function(t, y, parameters) {
+#     dy <- numeric(2)
+#     # variable 1
+#     dy[1] <- b[id_var1]
+#     for (j in 1:length(names(object$variables))) {
+#       if (j == id_var1) {
+#         # autoregressive effect
+#         dy[1] <- dy[1] + A[id_var1,j]*y[1]
+#       } else if (j == id_var2) {
+#         # cross-lagged effect of predictor
+#         dy[1] <- dy[1] + A[id_var1,j]*y[2]
+#       } else {
+#         # cross-lagged effects of other variables held at their median values
+#         dy[1] <- dy[1] + A[id_var1,j]*meds[j]
+#       }
+#     }
+#     # variable 2
+#     dy[2] <- b[id_var2]
+#     for (j in 1:length(names(object$variables))) {
+#       if (j == id_var2) {
+#         # autoregressive effect
+#         dy[2] <- dy[2] + A[id_var2,j]*y[2]
+#       } else if (j == id_var1) {
+#         # cross-lagged effect of predictor
+#         dy[2] <- dy[2] + A[id_var2,j]*y[1]
+#       } else {
+#         # cross-lagged effects of other variables held at their median values
+#         dy[2] <- dy[2] + A[id_var2,j]*meds[j]
+#       }
+#     }
+#     return(list(dy))
+#   }
+#   # create flow field diagram
+#   suppressWarnings({
+#     OU.flowField <-
+#       phaseR::flowField(
+#         OU,
+#         xlim = c(lowers[id_var1], uppers[id_var1]),
+#         ylim = c(lowers[id_var2], uppers[id_var2]),
+#         parameters = NA,
+#         add = FALSE,
+#         xlab = "",
+#         ylab = "",
+#         points = 12,
+#         col = "grey",
+#         xaxt = 'n',
+#         yaxt = 'n',
+#         arrow.type = "proportional",
+#         frac = 1.5,
+#         xaxs = "i",
+#         yaxs = "i",
+#         axes = FALSE,
+#         lwd = 2
+#       )
+#   })
+#   # var 1 label
+#   graphics::mtext(
+#     side = 1,
+#     text = paste0(var1_lab, " (z-score)"),
+#     at = meds[id_var1],
+#     line = 2.5,
+#     cex = 1.3
+#   )
+#   # var 2 label
+#   graphics::mtext(
+#     side = 2,
+#     text = paste0(var2_lab, " (z-score)"),
+#     at = meds[id_var2],
+#     line = 2.5,
+#     cex = 1.3
+#   )
+#   # add nullclines to phase plane
+#   suppressWarnings({
+#     if (nullclines) {
+#       nc <-
+#         phaseR::nullclines(
+#           OU,
+#           xlim = c(lowers[id_var1], uppers[id_var1]),
+#           ylim = c(lowers[id_var2], uppers[id_var2]),
+#           parameters = NA,
+#           points = 20,
+#           axes = FALSE,
+#           col = c("#c55852","#5387b6"),
+#           add.legend = FALSE,
+#           lwd = 2
+#         )
+#     }
+#   })
+#   # add axes
+#   graphics::axis(
+#     side = 1,
+#     at = c(lowers[id_var1], meds[id_var1], uppers[id_var1]),
+#     labels =
+#       (c(lowers[id_var1], meds[id_var1], uppers[id_var1]) - meds[id_var1]) /
+#       mads[id_var1]
+#   )
+#   graphics::axis(
+#     side = 2,
+#     at = c(lowers[id_var2], meds[id_var2], uppers[id_var2]),
+#     labels =
+#       (c(lowers[id_var2], meds[id_var2], uppers[id_var2]) - meds[id_var2]) /
+#       mads[id_var2]
+#   )
+#   
+#   p <- recordPlot()
+#   
+#   return(p)
+#   
+# }
+# object <- tar_read(coev_Q_noTransform)
+# var1 <- 'length.mean_F'
+# var2 <- 'Q'
+# limits=c(-5,5)
+# nullclines <- FALSE
+# var1_lab <- 'Body length'
+# var2_lab <- 'Q'
 
 
 print('Cleared functions')
