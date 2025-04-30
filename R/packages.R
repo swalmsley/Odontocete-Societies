@@ -51,11 +51,11 @@ suppressPackageStartupMessages({
   
   
   # Comment these out for supercomputer
-  # library(rnaturalearth)
-  # library(rnaturalearthdata)
-  # library(sf)
-  # library(stantargets)
-  # library(rbbt)
+  library(rnaturalearth)
+  library(rnaturalearthdata)
+  library(sf)
+  library(stantargets)
+  library(rbbt)
   
   # If packages need to be installed 
   

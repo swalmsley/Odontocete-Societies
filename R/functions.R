@@ -420,7 +420,7 @@ create_map <- function(d) {
   
   ggplot() +
     geom_sf(data = world_map, fill = "grey90", color = 'grey80') +
-    geom_sf(data = spatial_data, aes(color = common, shape = common), alpha = 0.6, size = 3) +
+    geom_sf(data = spatial_data, aes(color = common, shape = common), alpha = 0.75, size = 3.5) +
     coord_sf() +
     scale_color_viridis(discrete = TRUE, option = proj_color, begin = 0.95, end = 0.0) +
     scale_shape_manual(values = rep(c(15,16,18), length.out = 23)) + # Recycle shapes to match 23 groups
@@ -1161,7 +1161,7 @@ trait_change_plot <- function(fit) {
              x = -Inf, y = Inf, hjust = -0.1, vjust = 4, size = 4, color = plot_cols[1]) +
     theme_minimal() +
     scale_x_continuous(limits=c(-20,20)) +
-    ylim(0,0.38)+
+    # ylim(0,0.38)+
     scale_color_manual(values=plot_cols)+
     scale_fill_manual(values=plot_cols)+
     scale_size_manual(values=c(1,1,1.5)) +
@@ -1169,12 +1169,13 @@ trait_change_plot <- function(fit) {
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),axis.text.y=element_blank(),
           axis.ticks.y=element_blank(), legend.position = "none") +
     xlab(expression(paste(Delta, theta)["z"])) +
-    ylab("")
+    ylab("Density")
   
   p
   
 }
 # fit <- tar_read(coev_Q_noTransform)
+# fit <- tar_read(coev_Q_lifespan)
 
 
 
@@ -1442,146 +1443,6 @@ coevolve_table <- function(object, prob=0.9, robust=FALSE) {
 
 
 
-# Coevolutionary flowfield plot -------------------------------------------
-# custom_coev_plot_flowfield <- function(object, var1, var2, nullclines,
-#                                        limits, var1_lab, var2_lab) {
-#   
-#   # Check for required package
-#   if (!requireNamespace("ggplotify", quietly = TRUE)) {
-#     stop("Package 'ggplotify' is needed. Please install it with install.packages('ggplotify')")
-#   }
-#   
-#   # Use ggplotify to convert the base R plot to a ggplot object
-#   p <- ggplotify::as.ggplot(function() {
-#     
-#     # get IDs for variables
-#     id_var1 <- which(names(object$variables) == var1)
-#     id_var2 <- which(names(object$variables) == var2)
-#     # get posterior draws
-#     draws <- posterior::as_draws_rvars(object$fit)
-#     # medians and median absolute deviations for all variables
-#     eta  <- apply(
-#       draws$eta[,1:object$stan_data$N_tips,], 3, posterior::rvar_median
-#     )
-#     meds <- unlist(lapply(eta, stats::median))
-#     mads <- unlist(lapply(eta, stats::mad))
-#     lowers <- meds + limits[1]*mads
-#     uppers <- meds + limits[2]*mads
-#     # get median parameter values for A and b
-#     A <- stats::median(draws$A)
-#     b <- stats::median(draws$b)
-#     # function for flow field diagram
-#     OU <- function(t, y, parameters) {
-#       dy <- numeric(2)
-#       # variable 1
-#       dy[1] <- b[id_var1]
-#       for (j in 1:length(names(object$variables))) {
-#         if (j == id_var1) {
-#           # autoregressive effect
-#           dy[1] <- dy[1] + A[id_var1,j]*y[1]
-#         } else if (j == id_var2) {
-#           # cross-lagged effect of predictor
-#           dy[1] <- dy[1] + A[id_var1,j]*y[2]
-#         } else {
-#           # cross-lagged effects of other variables held at their median values
-#           dy[1] <- dy[1] + A[id_var1,j]*meds[j]
-#         }
-#       }
-#       # variable 2
-#       dy[2] <- b[id_var2]
-#       for (j in 1:length(names(object$variables))) {
-#         if (j == id_var2) {
-#           # autoregressive effect
-#           dy[2] <- dy[2] + A[id_var2,j]*y[2]
-#         } else if (j == id_var1) {
-#           # cross-lagged effect of predictor
-#           dy[2] <- dy[2] + A[id_var2,j]*y[1]
-#         } else {
-#           # cross-lagged effects of other variables held at their median values
-#           dy[2] <- dy[2] + A[id_var2,j]*meds[j]
-#         }
-#       }
-#       return(list(dy))
-#     }
-#     # create flow field diagram
-#     suppressWarnings({
-#       OU.flowField <-
-#         phaseR::flowField(
-#           OU,
-#           xlim = c(lowers[id_var1], uppers[id_var1]),
-#           ylim = c(lowers[id_var2], uppers[id_var2]),
-#           parameters = NA,
-#           add = FALSE,
-#           xlab = "",
-#           ylab = "",
-#           points = 12,
-#           col = "grey50",
-#           xaxt = 'n',
-#           yaxt = 'n',
-#           arrow.type = "proportional",
-#           frac = 1.5,
-#           xaxs = "i",
-#           yaxs = "i",
-#           axes = FALSE,
-#           lwd = 2
-#         )
-#     })
-#     # var 1 label
-#     # graphics::mtext(
-#     #   side = 1,
-#     #   text = paste0(var1_lab, " (z-score)"),
-#     #   at = meds[id_var1],
-#     #   line = 2.5,
-#     #   cex = 1.3
-#     # )
-#     # # var 2 label
-#     # graphics::mtext(
-#     #   side = 2,
-#     #   text = paste0(var2_lab, " (z-score)"),
-#     #   at = meds[id_var2],
-#     #   line = 2.5,
-#     #   cex = 1.3
-#     # )
-#     # add nullclines to phase plane
-#     suppressWarnings({
-#       if (nullclines) {
-#         nc <-
-#           phaseR::nullclines(
-#             OU,
-#             xlim = c(lowers[id_var1], uppers[id_var1]),
-#             ylim = c(lowers[id_var2], uppers[id_var2]),
-#             parameters = NA,
-#             points = 20,
-#             axes = FALSE,
-#             col = c("#c55852","#5387b6"),
-#             add.legend = FALSE,
-#             lwd = 2
-#           )
-#       }
-#     })
-#     # add axes
-#     graphics::axis(
-#       side = 1,
-#       at = c(lowers[id_var1], meds[id_var1], uppers[id_var1]),
-#       labels =
-#         (c(lowers[id_var1], meds[id_var1], uppers[id_var1]) - meds[id_var1]) /
-#         mads[id_var1]
-#     )
-#     graphics::axis(
-#       side = 2,
-#       at = c(lowers[id_var2], meds[id_var2], uppers[id_var2]),
-#       labels =
-#         (c(lowers[id_var2], meds[id_var2], uppers[id_var2]) - meds[id_var2]) /
-#         mads[id_var2]
-#     )
-#   })
-#   
-#   p <- p + annotate("text", x = 0.525, y = -Inf, label = paste(var1_lab), vjust = -1, size = 4) +
-#     annotate("text", x = -Inf, y = 0.525, label = paste(var2_lab), hjust = -1, size = 4)
-#   
-#   return(p)
-# }
-
 
 # Coevolutionary flowfield plot (fixed version) -------------------------------------------
 custom_coev_plot_flowfield <- function(object, var1, var2, nullclines,
@@ -1728,187 +1589,6 @@ custom_coev_plot_flowfield <- function(object, var1, var2, nullclines,
   return(p)
 }
 
-# 
-# custom_coev_plot_flowfield <- function(object, var1, var2, nullclines,
-#                                 limits, var1_lab, var2_lab) {
-#   # # stop if object is not of class coevfit
-#   # if (!methods::is(object, "coevfit")) {
-#   #   stop2(
-#   #     paste0(
-#   #       "Argument 'object' must be a fitted coevolutionary model of class ",
-#   #       "coevfit."
-#   #     )
-#   #   )
-#   # }
-#   # if (!is.character(var1) | length(var1) != 1) {
-#   #   # stop if var1 not character string of length one
-#   #   stop2("Argument 'var1' must be a character string of length one.")
-#   # } else if (!(var1 %in% names(object$variables))) {
-#   #   # stop if var1 not included in model
-#   #   stop2("Argument 'var1' must be a variable included in the fitted model.")
-#   # }
-#   # if (!is.character(var2) | length(var2) != 1) {
-#   #   # stop if var2 not character string of length one
-#   #   stop2("Argument 'var2' must be a character string of length one.")
-#   # } else if (!(var2 %in% names(object$variables))) {
-#   #   # stop if var2 not included in model
-#   #   stop2("Argument 'var2' must be a variable included in the fitted model.")
-#   # }
-#   # # stop if var1 and var2 are the same variable
-#   # if (var1 == var2) {
-#   #   stop2("Argument 'var1' and 'var2' must refer to different variables.")
-#   # }
-#   # # stop if nullclines not logical
-#   # if (!is.logical(nullclines)) {
-#   #   stop2("Argument 'nullclines' must be logical.")
-#   # }
-#   # # stop if limits is not a numeric vector of length 2
-#   # if (!(is.numeric(limits) & is.vector(limits) & length(limits) == 2)) {
-#   #   stop2("Argument 'limits' must be a numeric vector of length 2.")
-#   # }
-#   # # produce warning if there are three or more traits
-#   # if (length(object$variables) >= 3) {
-#   #   warning2(
-#   #     paste0(
-#   #       "Other traits were held constant at their median values to produce ",
-#   #       "this flowfield plot, which can potentially produce misleading ",
-#   #       "pictures of coevolutionary dynamics."
-#   #     )
-#   #   )
-#   # }
-#   # get IDs for variables
-#   id_var1 <- which(names(object$variables) == var1)
-#   id_var2 <- which(names(object$variables) == var2)
-#   # get posterior draws
-#   draws <- posterior::as_draws_rvars(object$fit)
-#   # medians and median absolute deviations for all variables
-#   eta  <- apply(
-#     draws$eta[,1:object$stan_data$N_tips,], 3, posterior::rvar_median
-#   )
-#   meds <- unlist(lapply(eta, stats::median))
-#   mads <- unlist(lapply(eta, stats::mad))
-#   lowers <- meds + limits[1]*mads
-#   uppers <- meds + limits[2]*mads
-#   # get median parameter values for A and b
-#   A <- stats::median(draws$A)
-#   b <- stats::median(draws$b)
-#   # function for flow field diagram
-#   OU <- function(t, y, parameters) {
-#     dy <- numeric(2)
-#     # variable 1
-#     dy[1] <- b[id_var1]
-#     for (j in 1:length(names(object$variables))) {
-#       if (j == id_var1) {
-#         # autoregressive effect
-#         dy[1] <- dy[1] + A[id_var1,j]*y[1]
-#       } else if (j == id_var2) {
-#         # cross-lagged effect of predictor
-#         dy[1] <- dy[1] + A[id_var1,j]*y[2]
-#       } else {
-#         # cross-lagged effects of other variables held at their median values
-#         dy[1] <- dy[1] + A[id_var1,j]*meds[j]
-#       }
-#     }
-#     # variable 2
-#     dy[2] <- b[id_var2]
-#     for (j in 1:length(names(object$variables))) {
-#       if (j == id_var2) {
-#         # autoregressive effect
-#         dy[2] <- dy[2] + A[id_var2,j]*y[2]
-#       } else if (j == id_var1) {
-#         # cross-lagged effect of predictor
-#         dy[2] <- dy[2] + A[id_var2,j]*y[1]
-#       } else {
-#         # cross-lagged effects of other variables held at their median values
-#         dy[2] <- dy[2] + A[id_var2,j]*meds[j]
-#       }
-#     }
-#     return(list(dy))
-#   }
-#   # create flow field diagram
-#   suppressWarnings({
-#     OU.flowField <-
-#       phaseR::flowField(
-#         OU,
-#         xlim = c(lowers[id_var1], uppers[id_var1]),
-#         ylim = c(lowers[id_var2], uppers[id_var2]),
-#         parameters = NA,
-#         add = FALSE,
-#         xlab = "",
-#         ylab = "",
-#         points = 12,
-#         col = "grey",
-#         xaxt = 'n',
-#         yaxt = 'n',
-#         arrow.type = "proportional",
-#         frac = 1.5,
-#         xaxs = "i",
-#         yaxs = "i",
-#         axes = FALSE,
-#         lwd = 2
-#       )
-#   })
-#   # var 1 label
-#   graphics::mtext(
-#     side = 1,
-#     text = paste0(var1_lab, " (z-score)"),
-#     at = meds[id_var1],
-#     line = 2.5,
-#     cex = 1.3
-#   )
-#   # var 2 label
-#   graphics::mtext(
-#     side = 2,
-#     text = paste0(var2_lab, " (z-score)"),
-#     at = meds[id_var2],
-#     line = 2.5,
-#     cex = 1.3
-#   )
-#   # add nullclines to phase plane
-#   suppressWarnings({
-#     if (nullclines) {
-#       nc <-
-#         phaseR::nullclines(
-#           OU,
-#           xlim = c(lowers[id_var1], uppers[id_var1]),
-#           ylim = c(lowers[id_var2], uppers[id_var2]),
-#           parameters = NA,
-#           points = 20,
-#           axes = FALSE,
-#           col = c("#c55852","#5387b6"),
-#           add.legend = FALSE,
-#           lwd = 2
-#         )
-#     }
-#   })
-#   # add axes
-#   graphics::axis(
-#     side = 1,
-#     at = c(lowers[id_var1], meds[id_var1], uppers[id_var1]),
-#     labels =
-#       (c(lowers[id_var1], meds[id_var1], uppers[id_var1]) - meds[id_var1]) /
-#       mads[id_var1]
-#   )
-#   graphics::axis(
-#     side = 2,
-#     at = c(lowers[id_var2], meds[id_var2], uppers[id_var2]),
-#     labels =
-#       (c(lowers[id_var2], meds[id_var2], uppers[id_var2]) - meds[id_var2]) /
-#       mads[id_var2]
-#   )
-#   
-#   p <- recordPlot()
-#   
-#   return(p)
-#   
-# }
-# object <- tar_read(coev_Q_noTransform)
-# var1 <- 'length.mean_F'
-# var2 <- 'Q'
-# limits=c(-5,5)
-# nullclines <- FALSE
-# var1_lab <- 'Body length'
-# var2_lab <- 'Q'
 
 
 print('Cleared functions')

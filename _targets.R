@@ -143,16 +143,19 @@ list(
                                prior("normal(0,1)", class = "b")),
                      control=list(adapt_delta=0.99, max_treedepth=15),
                      iter = 4000, chains = 4, cores = 4)),
-  tar_target(m1q_IVSO, brm(Q_IVSO ~ scale(lifespan_Post.Mean_F) + (1|Species) + (1|gr(phylo, cov = A)),
+  tar_target(m1q_IVSO, brm(Q_IVSO ~ scale(lifespan_Post.Mean_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsQ>1,,], data2 = list(A=A),
-                      prior = c(prior("normal(0,2)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                      prior = c(prior("normal(-2,1.5)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("exponential(1)", class='sd'),
+                                prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
-  tar_target(m1s_IVSO, brm(S_IVSO ~ scale(lifespan_Post.Mean_F) + (1|Species) + (1|gr(phylo, cov = A)),
+  tar_target(m1s_IVSO, brm(S_IVSO ~ scale(lifespan_Post.Mean_F) + (1|gr(phylo, cov = A)),
                            family = 'Gamma', data = data_IVSO[numObsS>1,,], data2 = list(A=A),
-                           prior = c(prior("normal(0,1)", class = "Intercept"),
-                                     prior("normal(0,1)", class = "b")),
+                           prior = c(prior("normal(-2,1.5)", class = "Intercept"),
+                                     prior("normal(0,1)", class = "b"),
+                                     prior("exponential(1)", class='sd')),
                            control=list(adapt_delta=0.99, max_treedepth=15),
                            iter = 4000, chains = 4, cores = 4)),
 
@@ -171,16 +174,20 @@ list(
                                 prior("normal(0,1)", class = "b")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
-  tar_target(m2q_IVSO, brm(Q_IVSO ~ scale(age.mat_F) + (1|Species) + (1|gr(phylo, cov = A)),
+  tar_target(m2q_IVSO, brm(Q_IVSO ~ scale(age.mat_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsQ>1], data2 = list(A=A),
-                      prior = c(prior("normal(0,2)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                      prior = c(prior("normal(-2,1.5)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("exponential(1)", class='sd'),
+                                prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
-  tar_target(m2s_IVSO, brm(S_IVSO ~ scale(age.mat_F) + (1|Species) + (1|gr(phylo, cov = A)),
+  tar_target(m2s_IVSO, brm(S_IVSO ~ scale(age.mat_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsS>1], data2 = list(A=A),
-                      prior = c(prior("normal(0,1)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                      prior = c(prior("normal(-2,1.5)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("exponential(1)", class='sd'),
+                                prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
 
@@ -210,16 +217,20 @@ list(
                                 prior("normal(0,1)", class = "b")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
-  tar_target(m3q_IVSO, brm(Q_IVSO ~ scale(log_length_F) + (1|Species) + (1|gr(phylo, cov = A)),
+  tar_target(m3q_IVSO, brm(Q_IVSO ~ scale(log_length_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsQ>1,,], data2 = list(A=A),
-                      prior = c(prior("normal(0,2)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                      prior = c(prior("normal(-2,1.5)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("exponential(1)", class='sd'),
+                                prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
-  tar_target(m3s_IVSO, brm(S_IVSO ~ scale(log_length_F) + (1|Species) + (1|gr(phylo, cov = A)),
+  tar_target(m3s_IVSO, brm(S_IVSO ~ scale(log_length_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsS>1], data2 = list(A=A),
-                      prior = c(prior("normal(0,1)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                      prior = c(prior("normal(-2,1.5)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("exponential(1)", class='sd'),
+                                prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
 
@@ -238,16 +249,20 @@ list(
                                 prior("normal(0,1)", class = "b")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
-  tar_target(m4q_IVSO, brm(Q_IVSO ~ scale(SSD) + (1|Species) + (1|gr(phylo, cov = A)),
+  tar_target(m4q_IVSO, brm(Q_IVSO ~ scale(SSD) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsQ>1], data2 = list(A=A),
-                      prior = c(prior("normal(0,2)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                      prior = c(prior("normal(-2,1.5)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("exponential(1)", class='sd'),
+                                prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
-  tar_target(m4s_IVSO, brm(S_IVSO ~ scale(SSD) + (1|Species) + (1|gr(phylo, cov = A)),
+  tar_target(m4s_IVSO, brm(S_IVSO ~ scale(SSD) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsS>1], data2 = list(A=A),
-                      prior = c(prior("normal(0,1)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                      prior = c(prior("normal(-2,1.5)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("exponential(1)", class='sd'),
+                                prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
                       iter = 4000, chains = 4, cores = 4)),
 
@@ -311,12 +326,15 @@ list(
                                      ancestral_state(m3s, ancestral_length_raw=250, colnum=4, var='S', label_position=c(2, 1), c(0,3)) +
                                      plot_layout(design = fg_layout)) + plot_annotation(tag_levels='A'))),
 
-
   # F4 - Dynamic effects
   tar_target(Figure4, save_figure('./Manuscript/Figures/Figure4.png',w=14,h=7,
                                   (trait_change_plot(coev_Q_noTransform) |
-                                     custom_coev_plot_flowfield(coev_Q_noTransform, 'length.mean_F', 'Q', nullclines=FALSE, limits=c(-5,5), var1_lab='Body length', var2_lab='Q') +
-                                     plot_annotation(tag_levels='A')))),
+                                     custom_coev_plot_flowfield(coev_Q_noTransform, 'length.mean_F', 'Q', nullclines=FALSE, limits=c(-5,5), var1_lab='Body length', var2_lab='Modularity')) +
+                                     plot_annotation(tag_levels='A'))),
+  
+  # S1 - Phylogenetic signal
+  tar_target(FigureS1, save_figure('./Manuscript/Figures/FigureS1.png',w=3,h=5,
+                                   plot_phylogenetic_signal_ridges(psQ, psS, psLifespan, psAgeM, psLength, psSSD))),
 
   # S2 - Dynamic effects (all)
   tar_target(FigureS2, save_figure('./Manuscript/Figures/FigureS2.png',w=25,h=12,
@@ -325,10 +343,6 @@ list(
                                       trait_change_plot(coev_Q_ageMat) / trait_change_plot(coev_S_ageMat) |
                                       trait_change_plot(coev_Q_SSD) / trait_change_plot(coev_S_SSD))
                                       + plot_annotation(tag_levels='A'))),
-
-  # S1 - Phylogenetic signal
-  tar_target(FigureS1, save_figure('./Manuscript/Figures/FigureS1.png',w=3,h=5,
-                                   plot_phylogenetic_signal_ridges(psQ, psS, psLifespan, psAgeM, psLength, psSSD))),
 
   # Visual summaries of GDPMs
   tar_target(Figure_GDPM_1, save_figure('./Manuscript/Figures/GDPM_summaries/Figure_GDPM_1.png',w=11,h=11, (GDPM_visual_summary(coev_Q, 'Q', 'log_length_F')))),
