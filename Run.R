@@ -9,7 +9,7 @@ library(targets)
 
 ######################################
 # Run analysis with parallel computing
-tar_make_clustermq(workers=16)
+tar_make_clustermq(workers=32)
 
 
 # Visualize analysis

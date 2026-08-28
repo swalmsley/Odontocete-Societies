@@ -1,6 +1,8 @@
 
 library(targets)
 
+# Sys.setenv(PATH = paste("/Applications/RStudio.app/Contents/Resources/app/quarto/bin", Sys.getenv("PATH"), sep = ":"))
+
 # Source
 tar_source('R') # will do all in 'R' folder
 
@@ -8,13 +10,15 @@ tar_source('R') # will do all in 'R' folder
 tar_option_set(seed = 1234)
 
 # Configuration - reduce uploads to cloud for improved efficiency
-tar_config_set(seconds_meta_append = 15,
-               seconds_meta_upload = 15,
-               seconds_reporter = 0.5)
+# tar_config_set(seconds_meta_append = 15,
+#                seconds_meta_upload = 15)
 
 # Variables
-suppressMessages(set_cmdstan_path(path='C:/Users/sjfwa/AppData/Local/R/cmdstan-2.33.1')) # cmdstan path for local machine
-# cmdstanr::set_cmdstan_path('/home/sjfw/.cmdstan/cmdstan-2.36.0') # path for supercomputer
+# suppressMessages(set_cmdstan_path(path='C:/Users/sjfwa/AppData/Local/R/cmdstan-2.33.1')) # cmdstan path for local machine (Lenovo P5)
+# cmdstanr::set_cmdstan_path('/Users/sw3338/.cmdstan/cmdstan-2.39.0') # path for local machine (Macbook Pro)
+
+# cmdstanr::set_cmdstan_path('/home/sjfw/.cmdstan/cmdstan-2.36.0') # path for Canadian supercomputer
+cmdstanr::set_cmdstan_path('/home/sw3338/.cmdstan/cmdstan-2.39.0') # path for Princeton supercomputer
 
 
 # ############################
@@ -33,6 +37,23 @@ suppressMessages(set_cmdstan_path(path='C:/Users/sjfwa/AppData/Local/R/cmdstan-2
 #   )
 # )
 
+# ############################
+# Parallel computing - Princeton Supercomputer (Comment out to run locally)
+options(clustermq.scheduler = 'slurm', clustermq.template='SLURM.tmpl')
+# Set targets options with SLURM resources
+tar_option_set(
+  resources = tar_resources(
+    clustermq = tar_resources_clustermq(
+      template = list(
+        cores = 4,            # Number of cores per task
+        memory = 8192,        # Memory in MB (e.g., 8192 for 8 GB)
+        time = '2-00:00:00'   # Time in D-HH:MM:SS
+      )
+    )
+  )
+)
+
+
 
 # Set color theme
 proj_color <- 'A'
@@ -49,7 +70,7 @@ list(
   tar_target(species, read_data(species_file)),
   
   # load database of social network traits
-  tar_target(database_file, 'Input/Literature_Review/5-Database.xlsx', format = 'file'),
+  tar_target(database_file, 'Input/Literature_Review/6-Database-v2.xlsx', format = 'file'),
   tar_target(database, read_data_excel(database_file)),  
   
   # load lifespan data from Ellis et al. 2023
@@ -101,8 +122,7 @@ list(
   
   # create variance-covariance matrix 
   tar_target(A, vcv(tree, corr=TRUE)),
-  ###### Do I need to subset the variance-covariance matrix to included species or does it not matter?
-  
+
   
   ####################################
   # Phylogenetic signal
@@ -134,30 +154,33 @@ list(
   tar_target(m1q, brm(Q ~ scale(lifespan_Post.Mean_F) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                      family = 'Beta', data = data_Q, data2 = list(A=A),
                      prior = c(prior("normal(0,2)", class = "Intercept"),
-                               prior("normal(0,1)", class = "b")),
+                               prior("normal(0,1)", class = "b"),
+                               prior("normal(0,1)", class = "sd")),
                      control=list(adapt_delta=0.99, max_treedepth=15),
-                     iter = 4000, chains = 4, cores = 4)),
+                     warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m1s, brm(S ~ scale(lifespan_Post.Mean_F) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                      family = 'Gamma', data = data_S, data2 = list(A=A),
                      prior = c(prior("normal(0,1)", class = "Intercept"),
-                               prior("normal(0,1)", class = "b")),
+                               prior("normal(0,1)", class = "b"),
+                               prior("normal(0,1)", class = "sd")),
                      control=list(adapt_delta=0.99, max_treedepth=15),
-                     iter = 4000, chains = 4, cores = 4)),
+                     warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m1q_IVSO, brm(Q_IVSO ~ scale(lifespan_Post.Mean_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsQ>1,,], data2 = list(A=A),
                       prior = c(prior("normal(-2,1.5)", class = "Intercept"),
                                 prior("normal(0,1)", class = "b"),
-                                prior("exponential(1)", class='sd'),
+                                prior("normal(0,0.5)", class='sd'),
                                 prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m1s_IVSO, brm(S_IVSO ~ scale(lifespan_Post.Mean_F) + (1|gr(phylo, cov = A)),
                            family = 'Gamma', data = data_IVSO[numObsS>1,,], data2 = list(A=A),
                            prior = c(prior("normal(-2,1.5)", class = "Intercept"),
                                      prior("normal(0,1)", class = "b"),
-                                     prior("exponential(1)", class='sd')),
+                                     prior("normal(0,0.5)", class='sd'),
+                                     prior("gamma(3,0.1)", class = "shape")),
                            control=list(adapt_delta=0.99, max_treedepth=15),
-                           iter = 4000, chains = 4, cores = 4)),
+                           warmup = 4000, iter = 8000, chains = 4, cores = 4)),
 
 
 
@@ -165,74 +188,80 @@ list(
   tar_target(m2q, brm(Q ~ scale(age.mat_F) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                       family = 'Beta', data = data_Q, data2 = list(A=A),
                       prior = c(prior("normal(0,2)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m2s, brm(S ~ scale(age.mat_F) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_S, data2 = list(A=A),
                       prior = c(prior("normal(0,1)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m2q_IVSO, brm(Q_IVSO ~ scale(age.mat_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsQ>1], data2 = list(A=A),
                       prior = c(prior("normal(-2,1.5)", class = "Intercept"),
                                 prior("normal(0,1)", class = "b"),
-                                prior("exponential(1)", class='sd'),
+                                prior("normal(0,0.5)", class='sd'),
                                 prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m2s_IVSO, brm(S_IVSO ~ scale(age.mat_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsS>1], data2 = list(A=A),
                       prior = c(prior("normal(-2,1.5)", class = "Intercept"),
                                 prior("normal(0,1)", class = "b"),
-                                prior("exponential(1)", class='sd'),
+                                prior("normal(0,0.5)", class='sd'),
                                 prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
 
 
   # Body length
   tar_target(m3q, brm(Q ~ scale(log_length_F) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                       family = 'Beta', data = data_Q, data2 = list(A=A),
                       prior = c(prior("normal(0,2)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m3s, brm(S ~ scale(log_length_F) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_S, data2 = list(A=A),
                       prior = c(prior("normal(0,1)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m3q_noTransform, brm(Q ~ scale(length.mean_F) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                       family = 'Beta', data = data_Q, data2 = list(A=A),
                       prior = c(prior("normal(0,2)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m3s_noTransform, brm(S ~ scale(length.mean_F) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_S, data2 = list(A=A),
                       prior = c(prior("normal(0,1)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m3q_IVSO, brm(Q_IVSO ~ scale(log_length_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsQ>1,,], data2 = list(A=A),
                       prior = c(prior("normal(-2,1.5)", class = "Intercept"),
                                 prior("normal(0,1)", class = "b"),
-                                prior("exponential(1)", class='sd'),
+                                prior("normal(0,0.5)", class='sd'),
                                 prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m3s_IVSO, brm(S_IVSO ~ scale(log_length_F) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsS>1], data2 = list(A=A),
                       prior = c(prior("normal(-2,1.5)", class = "Intercept"),
                                 prior("normal(0,1)", class = "b"),
-                                prior("exponential(1)", class='sd'),
+                                prior("normal(0,0.5)", class='sd'),
                                 prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
 
 
 
@@ -240,33 +269,209 @@ list(
   tar_target(m4q, brm(Q ~ scale(SSD) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                       family = 'Beta', data = data_Q, data2 = list(A=A),
                       prior = c(prior("normal(0,2)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m4s, brm(S ~ scale(SSD) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_S, data2 = list(A=A),
                       prior = c(prior("normal(0,1)", class = "Intercept"),
-                                prior("normal(0,1)", class = "b")),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m4q_IVSO, brm(Q_IVSO ~ scale(SSD) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsQ>1], data2 = list(A=A),
                       prior = c(prior("normal(-2,1.5)", class = "Intercept"),
                                 prior("normal(0,1)", class = "b"),
-                                prior("exponential(1)", class='sd'),
+                                prior("normal(0,0.5)", class='sd'),
                                 prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
   tar_target(m4s_IVSO, brm(S_IVSO ~ scale(SSD) + (1|gr(phylo, cov = A)),
                       family = 'Gamma', data = data_IVSO[numObsS>1], data2 = list(A=A),
                       prior = c(prior("normal(-2,1.5)", class = "Intercept"),
                                 prior("normal(0,1)", class = "b"),
-                                prior("exponential(1)", class='sd'),
+                                prior("normal(0,0.5)", class='sd'),
                                 prior("gamma(3,0.1)", class = "shape")),
                       control=list(adapt_delta=0.99, max_treedepth=15),
-                      iter = 4000, chains = 4, cores = 4)),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
 
+  
+  
+  ####################################
+  # Structural checks
+  ####################################
+  
+  # Network size
+  tar_target(m_netSize_q, brm(Q ~ scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                     family = 'Beta', data = data_Q, data2 = list(A=A),
+                     prior = c(prior("normal(0,2)", class = "Intercept"),
+                               prior("normal(0,1)", class = "b"),
+                               prior("normal(0,1)", class = "sd")),
+                     control=list(adapt_delta=0.99, max_treedepth=15),
+                     warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(m_netSize_s, brm(S ~ scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                     family = 'Gamma', data = data_S, data2 = list(A=A),
+                     prior = c(prior("normal(0,1)", class = "Intercept"),
+                               prior("normal(0,1)", class = "b"),
+                               prior("normal(0,1)", class = "sd")),
+                     control=list(adapt_delta=0.99, max_treedepth=15),
+                     warmup = 4000, iter = 8000, chains = 4, cores = 4)),
 
+  
+  # Study duration
+  tar_target(m_duration_q, brm(Q ~ scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                              family = 'Beta', data = data_Q, data2 = list(A=A),
+                              prior = c(prior("normal(0,2)", class = "Intercept"),
+                                        prior("normal(0,1)", class = "b"),
+                                        prior("normal(0,1)", class = "sd")),
+                              control=list(adapt_delta=0.99, max_treedepth=15),
+                              warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(m_duration_s, brm(S ~ scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                              family = 'Gamma', data = data_S, data2 = list(A=A),
+                              prior = c(prior("normal(0,1)", class = "Intercept"),
+                                        prior("normal(0,1)", class = "b"),
+                                        prior("normal(0,1)", class = "sd")),
+                              control=list(adapt_delta=0.99, max_treedepth=15),
+                              warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  
+  
+  ####################################
+  # Robustness checks
+  ####################################
+  
+  ## Network size ## 
+  
+  ## Lifespan
+  tar_target(ns_m1q, brm(Q ~ scale(lifespan_Post.Mean_F) + scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                     family = 'Beta', data = data_Q, data2 = list(A=A),
+                     prior = c(prior("normal(0,2)", class = "Intercept"),
+                               prior("normal(0,1)", class = "b"),
+                               prior("normal(0,1)", class = "sd")),
+                     control=list(adapt_delta=0.99, max_treedepth=15),
+                     warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(ns_m1s, brm(S ~ scale(lifespan_Post.Mean_F) + scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                     family = 'Gamma', data = data_S, data2 = list(A=A),
+                     prior = c(prior("normal(0,1)", class = "Intercept"),
+                               prior("normal(0,1)", class = "b"),
+                               prior("normal(0,1)", class = "sd"),
+                               prior("gamma(3,0.1)", class = "shape")),
+                     control=list(adapt_delta=0.99, max_treedepth=15),
+                     warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  ## Age at maturity
+  tar_target(ns_m2q, brm(Q ~ scale(age.mat_F) + scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                      family = 'Beta', data = data_Q, data2 = list(A=A),
+                      prior = c(prior("normal(0,2)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
+                      control=list(adapt_delta=0.99, max_treedepth=15),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(ns_m2s, brm(S ~ scale(age.mat_F) + scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                      family = 'Gamma', data = data_S, data2 = list(A=A),
+                      prior = c(prior("normal(0,1)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
+                      control=list(adapt_delta=0.99, max_treedepth=15),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  # Body length
+  tar_target(ns_m3q, brm(Q ~ scale(log_length_F) + scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                      family = 'Beta', data = data_Q, data2 = list(A=A),
+                      prior = c(prior("normal(0,2)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
+                      control=list(adapt_delta=0.99, max_treedepth=15),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(ns_m3s, brm(S ~ scale(log_length_F) + scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                      family = 'Gamma', data = data_S, data2 = list(A=A),
+                      prior = c(prior("normal(0,1)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
+                      control=list(adapt_delta=0.99, max_treedepth=15),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  # Sexual size dimorphism
+  tar_target(ns_m4q, brm(Q ~ scale(SSD) + scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                      family = 'Beta', data = data_Q, data2 = list(A=A),
+                      prior = c(prior("normal(0,2)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
+                      control=list(adapt_delta=0.99, max_treedepth=15),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(ns_m4s, brm(S ~ scale(SSD) + scale(networkSize) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                      family = 'Gamma', data = data_S, data2 = list(A=A),
+                      prior = c(prior("normal(0,1)", class = "Intercept"),
+                                prior("normal(0,1)", class = "b"),
+                                prior("normal(0,1)", class = "sd")),
+                      control=list(adapt_delta=0.99, max_treedepth=15),
+                      warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  
+  
+  ## Study duration ## 
+  
+  ## Lifespan
+  tar_target(dur_m1q, brm(Q ~ scale(lifespan_Post.Mean_F) + scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                         family = 'Beta', data = data_Q, data2 = list(A=A),
+                         prior = c(prior("normal(0,2)", class = "Intercept"),
+                                   prior("normal(0,1)", class = "b"),
+                                   prior("normal(0,1)", class = "sd")),
+                         control=list(adapt_delta=0.99, max_treedepth=15),
+                         warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(dur_m1s, brm(S ~ scale(lifespan_Post.Mean_F) + scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                         family = 'Gamma', data = data_S, data2 = list(A=A),
+                         prior = c(prior("normal(0,1)", class = "Intercept"),
+                                   prior("normal(0,1)", class = "b"),
+                                   prior("normal(0,1)", class = "sd")),
+                         control=list(adapt_delta=0.99, max_treedepth=15),
+                         warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  ## Age at maturity
+  tar_target(dur_m2q, brm(Q ~ scale(age.mat_F) + scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                         family = 'Beta', data = data_Q, data2 = list(A=A),
+                         prior = c(prior("normal(0,2)", class = "Intercept"),
+                                   prior("normal(0,1)", class = "b"),
+                                   prior("normal(0,1)", class = "sd")),
+                         control=list(adapt_delta=0.99, max_treedepth=15),
+                         warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(dur_m2s, brm(S ~ scale(age.mat_F) + scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                         family = 'Gamma', data = data_S, data2 = list(A=A),
+                         prior = c(prior("normal(0,1)", class = "Intercept"),
+                                   prior("normal(0,1)", class = "b"),
+                                   prior("normal(0,1)", class = "sd")),
+                         control=list(adapt_delta=0.99, max_treedepth=15),
+                         warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  # Body length
+  tar_target(dur_m3q, brm(Q ~ scale(log_length_F) + scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                         family = 'Beta', data = data_Q, data2 = list(A=A),
+                         prior = c(prior("normal(0,2)", class = "Intercept"),
+                                   prior("normal(0,1)", class = "b"),
+                                   prior("normal(0,1)", class = "sd")),
+                         control=list(adapt_delta=0.99, max_treedepth=15),
+                         warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(dur_m3s, brm(S ~ scale(log_length_F) + scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                         family = 'Gamma', data = data_S, data2 = list(A=A),
+                         prior = c(prior("normal(0,1)", class = "Intercept"),
+                                   prior("normal(0,1)", class = "b"),
+                                   prior("normal(0,1)", class = "sd")),
+                         control=list(adapt_delta=0.99, max_treedepth=15),
+                         warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  # Sexual size dimorphism
+  tar_target(dur_m4q, brm(Q ~ scale(SSD) + scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                         family = 'Beta', data = data_Q, data2 = list(A=A),
+                         prior = c(prior("normal(0,2)", class = "Intercept"),
+                                   prior("normal(0,1)", class = "b"),
+                                   prior("normal(0,1)", class = "sd")),
+                         control=list(adapt_delta=0.99, max_treedepth=15),
+                         warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  tar_target(dur_m4s, brm(S ~ scale(SSD) + scale(studyDuration) + (1|AssociationIndex) + (1|Species) + (1|Population) + (1|gr(phylo, cov = A)),
+                         family = 'Gamma', data = data_S, data2 = list(A=A),
+                         prior = c(prior("normal(0,1)", class = "Intercept"),
+                                   prior("normal(0,1)", class = "b"),
+                                   prior("normal(0,1)", class = "sd")),
+                         control=list(adapt_delta=0.99, max_treedepth=15),
+                         warmup = 4000, iter = 8000, chains = 4, cores = 4)),
+  
+  
+
+  
   ####################################
   # Coevolutionary models
   ####################################
@@ -274,22 +479,22 @@ list(
   tar_target(data_coev_Q, create_coev_data(data, 'Q')),
   tar_target(data_coev_S, create_coev_data(data, 'S')),
 
-  tar_target(coev_Q, fit_and_save_coev_model(data = data_coev_Q, var1 = 'Q', var2 = 'log_length_F', tree)),
-  tar_target(coev_S, fit_and_save_coev_model(data = data_coev_S, var1 = 'S', var2 = 'log_length_F', tree)),
+  tar_target(coev_Q, fit_and_save_coev_model(data = data_coev_Q, vars = c('Q', 'log_length_F'), tree)),
+  tar_target(coev_S, fit_and_save_coev_model(data = data_coev_S, vars = c('S', 'log_length_F'), tree)),
+
+  tar_target(coev_Q_noTransform, fit_and_save_coev_model(data = data_coev_Q, vars = c('Q', 'length.mean_F'), tree)),
+  tar_target(coev_S_noTransform, fit_and_save_coev_model(data = data_coev_S, vars = c('S', 'length.mean_F'), tree)),
+
+  tar_target(coev_Q_lifespan, fit_and_save_coev_model(data = data_coev_Q, vars = c('Q', 'lifespan_Post.Mean_F'), tree)),
+  tar_target(coev_S_lifespan, fit_and_save_coev_model(data = data_coev_S, vars = c('S', 'lifespan_Post.Mean_F'), tree)),
+
+  tar_target(coev_Q_ageMat, fit_and_save_coev_model(data = data_coev_Q, vars = c('Q', 'age.mat_F'), tree)),
+  tar_target(coev_S_ageMat, fit_and_save_coev_model(data = data_coev_S, vars = c('S', 'age.mat_F'), tree)),
+
+  tar_target(coev_Q_SSD, fit_and_save_coev_model(data = data_coev_Q, vars = c('Q', 'SSD'), tree)),
+  tar_target(coev_S_SSD, fit_and_save_coev_model(data = data_coev_S, vars = c('S', 'SSD'), tree)),
   
-  tar_target(coev_Q_noTransform, fit_and_save_coev_model(data = data_coev_Q, var1 = 'Q', var2 = 'length.mean_F', tree)),
-  tar_target(coev_S_noTransform, fit_and_save_coev_model(data = data_coev_S, var1 = 'S', var2 = 'length.mean_F', tree)),
-
-  tar_target(coev_Q_lifespan, fit_and_save_coev_model(data = data_coev_Q, var1 = 'Q', var2 = 'lifespan_Post.Mean_F', tree)),
-  tar_target(coev_S_lifespan, fit_and_save_coev_model(data = data_coev_S, var1 = 'S', var2 = 'lifespan_Post.Mean_F', tree)),
-
-  tar_target(coev_Q_ageMat, fit_and_save_coev_model(data = data_coev_Q, var1 = 'Q', var2 = 'age.mat_F', tree)),
-  tar_target(coev_S_ageMat, fit_and_save_coev_model(data = data_coev_S, var1 = 'S', var2 = 'age.mat_F', tree)),
-
-  tar_target(coev_Q_SSD, fit_and_save_coev_model(data = data_coev_Q, var1 = 'Q', var2 = 'SSD', tree)),
-  tar_target(coev_S_SSD, fit_and_save_coev_model(data = data_coev_S, var1 = 'S', var2 = 'SSD', tree)),
   
-
 
   ####################################
   # Figures
@@ -331,7 +536,7 @@ list(
                                   (trait_change_plot(coev_Q_noTransform) |
                                      custom_coev_plot_flowfield(coev_Q_noTransform, 'length.mean_F', 'Q', nullclines=FALSE, limits=c(-5,5), var1_lab='Body length', var2_lab='Modularity')) +
                                      plot_annotation(tag_levels='A'))),
-  
+
   # S1 - Phylogenetic signal
   tar_target(FigureS1, save_figure('./Manuscript/Figures/FigureS1.png',w=3,h=5,
                                    plot_phylogenetic_signal_ridges(psQ, psS, psLifespan, psAgeM, psLength, psSSD))),
@@ -359,19 +564,49 @@ list(
 
   tar_target(Figure_GDPM_7, save_figure('./Manuscript/Figures/GDPM_summaries/Figure_GDPM_7.png',w=11,h=11, (GDPM_visual_summary(coev_Q_SSD, 'Q', 'SSD')))),
   tar_target(Figure_GDPM_8, save_figure('./Manuscript/Figures/GDPM_summaries/Figure_GDPM_8.png',w=11,h=11, (GDPM_visual_summary(coev_S_SSD, 'S', 'SSD')))),
+  
+
+  
+  # S4 - Effects of network size and sampling duration across robustness checks
+  tar_target(FigureS4, save_figure('./Manuscript/Figures/FigureS4.png',w=18,h=9,
+                                   plot_control_lifehistory_QS(control_labels = c('Network size', 'Duration'),
+                                                               control_coefs  = c('b_scalenetworkSize', 'b_scalestudyDuration'),
+                                                               row_labels     = c('Lifespan', 'Age at maturity', 'Body length (log)', 'SSD'),
+                                                               model_lists_Q = list(
+                                                                 list(ns_m1q, ns_m2q, ns_m3q, ns_m4q),
+                                                                 list(dur_m1q, dur_m2q, dur_m3q, dur_m4q)),
+                                                               model_lists_S = list(list(ns_m1s, ns_m2s, ns_m3s, ns_m4s),
+                                                                                    list(dur_m1s, dur_m2s, dur_m3s, dur_m4s))))),
+
+  
+  # S5 - Comparing life history coefficients across robustness checks
+  tar_target(FigureS5, save_figure('./Manuscript/Figures/FigureS5.png',w=18,h=9,
+                                   plot_robustness_forest(trait_vars = c('lifespan_Post.Mean_F', 'age.mat_F', 'log_length_F', 'SSD'),
+                                                          trait_labels = c('Lifespan', 'Age at maturity', 'Body length (log)', 'SSD'),
+                                                          baseline_models = list(m1q, m2q, m3q, m4q),
+                                                          ns_models = list(ns_m1q, ns_m2q, ns_m3q, ns_m4q),
+                                                          dur_models = list(dur_m1q, dur_m2q, dur_m3q, dur_m4q),
+                                                          title = 'Q') |
+                                     plot_robustness_forest(trait_vars = c('lifespan_Post.Mean_F', 'age.mat_F', 'log_length_F', 'SSD'),
+                                                            trait_labels = c('Lifespan', 'Age at maturity', 'Body length (log)', 'SSD'),
+                                                            baseline_models = list(m1s, m2s, m3s, m4s),
+                                                            ns_models = list(ns_m1s, ns_m2s, ns_m3s, ns_m4s),
+                                                            dur_models = list(dur_m1s, dur_m2s, dur_m3s, dur_m4s),
+                                                            title = 'S')))
+  
 
 
-  ####################################
-  # Write manuscript
-  ####################################
-
-  tar_quarto(
-    supplement,
-    file.path('Manuscript','Supplement_OdontoceteSocieties.qmd')),
-
-  tar_quarto(
-    paper,
-    file.path('Manuscript','MS_OdontoceteSocieties.qmd'))
+  # ####################################
+  # # Write manuscript
+  # ####################################
+  # 
+  # # tar_quarto(
+  # #   supplement,
+  # #   file.path('Manuscript','Supplement_OdontoceteSocieties.qmd'))
+  # 
+  # # tar_quarto(
+  # #   paper,
+  # #   file.path('Manuscript','MS_OdontoceteSocieties.qmd'))
 
 )
 

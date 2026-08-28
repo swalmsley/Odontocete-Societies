@@ -102,33 +102,64 @@ format_number <- function(num) {
 ###########################################################################
 
 
+# # Custom helper to deal with cmdstanr issues on supercomputer -------------
+# fit_and_save_coev_model <- function(data, vars, tree) {
+#   
+#   model_name <- paste(vars, collapse = '-')
+#   
+#   save_coevfit(coev_fit(data = data,
+#                         variables = setNames(as.list(rep("normal", length(vars))), vars), # currently assuming normal
+#                         id = 'phylo',
+#                         tree = tree,
+#                         complete_cases = FALSE,
+#                         estimate_residual = TRUE,
+#                         chains=4,
+#                         parallel_chains = 4,
+#                         iter_warmup = 2000,
+#                         iter_sampling = 2000,
+#                         adapt_delta = 0.99,
+#                         max_treedepth = 15,
+#                         refresh = 0,
+#                         seed = 1,
+#                         output_dir = file.path(getwd(), "Output")), file = paste(file.path(getwd(), "Output"), '/', model_name, '.RDS', sep=''))
+#   
+#   readRDS(paste(file.path(getwd(), "Output"), '/', model_name, '.RDS', sep=''))
+#   
+# }
+# # data <- tar_read(data_coev_Q)
+# # vars <- c('Q', 'log_length_F')
+# # tree <- tar_read(tree)
+
+
 # Custom helper to deal with cmdstanr issues on supercomputer -------------
-fit_and_save_coev_model <- function(data, var1, var2, tree) {
+fit_and_save_coev_model <- function(data, vars, tree) {
   
-  model_name <- paste(var1, var2, sep='-')
+  model_name <- paste(vars, collapse = '-')
   
-  save_coevfit(coev_fit(data = data,
-                        variables = setNames(as.list(rep("normal", 2)), c(var1, var2)), # currently assuming normal
+  m <- coev_fit(data = data,
+                        variables = setNames(as.list(rep("normal", length(vars))), vars), # currently assuming normal
                         id = 'phylo',
                         tree = tree,
                         complete_cases = FALSE,
                         estimate_residual = TRUE,
                         chains=4,
                         parallel_chains = 4,
-                        iter_sampling = 4000,
+                        iter_warmup = 2000,
+                        iter_sampling = 2000,
                         adapt_delta = 0.99,
                         max_treedepth = 15,
                         refresh = 0,
-                        seed = 1,
-                        output_dir = file.path(getwd(), "Output")), file = paste(file.path(getwd(), "Output"), '/', model_name, '.RDS', sep=''))
+                        seed = 1)
   
-  readRDS(paste(file.path(getwd(), "Output"), '/', model_name, '.RDS', sep=''))
-  
+  return(m)
+
 }
 # data <- tar_read(data_coev_Q)
-# var1 <- 'Q'
-# var2 <- 'log_length_F'
+# vars <- c('Q', 'log_length_F')
 # tree <- tar_read(tree)
+
+
+
 
 
 
@@ -205,7 +236,7 @@ phylogenetic_signal <- function (fit, repeat_obs, species_effect) {
   if (repeat_obs & species_effect) (hyp <- paste("sd_Species__Intercept^2 /", "(sd_phylo__Intercept^2 + sd_Species__Intercept^2 + sigma^2) = 0")) # if interested in species over and above phylo
 
   # With only phylogenetic random effect
-  if (!species_effect) (hyp <- "sd_phylo__Intercept^2 / (sd_phylo__Intercept^2 + sigma^2) = 0")
+  if (!(repeat_obs)) (hyp <- "sd_phylo__Intercept^2 / (sd_phylo__Intercept^2 + sigma^2) = 0")
   
   # Run hypothesis test
   (hyp <- hypothesis(fit, hyp, class = NULL))
@@ -265,6 +296,7 @@ plot_phylogenetic_signal_ridges <- function(Q, S, Lifespan, AgeM, Length, SSD) {
       color = viridis(10, option=proj_color)[3], size = 3.5, hjust = 0, vjust=-2
     ) +    
     labs(x=expression(Phylogenetic*' '*R^2), y='') +
+    coord_cartesian(clip = "off") +
     theme_classic() + 
     theme(axis.text.y=element_text(size=12))
   
@@ -373,6 +405,17 @@ finalize_data <- function(d, exclude_from_SSD) {
   # Study years
   d[!is.na(minYear),meanYear:=mean(c(minYear, maxYear)),by=index]
   
+  # Calculate study duration
+  d[,studyDuration:=(maxYear-minYear)+1,by=index]
+  
+  # Format network size as number
+  d[,networkSize:=as.numeric(`Network size`),by=index]
+  d[,`Network size`:=NULL,]
+  
+  # Format R and R_se as number
+  d[,R:=as.numeric(R),by=index]
+  d[,R_se:=as.numeric(R_se),by=index]
+  
   return(d)
   
 }
@@ -392,6 +435,7 @@ add_IVSO <- function(d) {
   
   # subset for S
   s_data <- d[!(is.na(Title)) & !(is.na(S)) & AssociationIndex %in% c('HWI','SRI','SAI','GAI (with HWI)') & !(Exclusions %in% c('Both','S')) & SexFocus=='Assume mixed',,]
+  s_data <- s_data[S_method=='Likelihood',,]
   s_data[, numObsS:=.N, by=Species]
   s_data[, S_IVSO:=calculate_cv(S), by=Species]
   s_data <- unique(s_data[,c('Species','numObsS','S_IVSO')])
@@ -860,19 +904,11 @@ ancestral_state <- function(fit, ancestral_length_raw, colnum, var, label_positi
     scale_fill_viridis(option = proj_color, begin=0, end=0.9, direction=-1) +
     geom_vline(xintercept = threshold_int, color="grey", linetype='dashed', lwd=0.75) +
     labs(y='Density', x=xlab) +
-    annotate("text",label=bquote(bar(.(var))[Ancestral] == .(med_val)), x=label_position[1], y=label_position[2], color='black', size=5) +
+    # annotate("text",label=bquote(bar(.(var))[Ancestral] == .(med_val)), x=label_position[1], y=label_position[2], color='black', size=5) +
+    annotate("text", label = as.expression(bquote(bar(.(var))[Ancestral] == .(med_val))), x=label_position[1], y=label_position[2], color='black', size=5) +
     theme_classic() + 
     xlim(xlim[1], xlim[2])+
     theme(legend.position='none')
-  
-  # Calculate probability greater than given value, if desired
-  
-  # FOR Q - posterior probability of meaningful divisions in community (based on typical threshold of 0.3)
-  # p_direction(pred$anc_prediction, null = 0.3) # 0.58
-  
-  # FOR S - posterior probability of non-homogenous relationships (0.3) and differentiated relationships (0.5)
-  # p_direction(pred$anc_prediction, null = 0.3) # 0.99
-  # p_direction(pred$anc_prediction, null = 0.5) # 0.95
   
   
 }
@@ -1004,7 +1040,7 @@ plot_tree_two_adjacent_traits <- function(t, data, traitName1, traitName2, flip,
   # Add phylopic silhouettes
   p <- p + geom_cladelab(node=clades$node, label=clades$label, offset=0.035) +
     xlim(0,0.6) +
-    add_phylopic(name='Physeter macrocephalus', x=0.45, y=4.5, width = size*10, alpha=1, fill = 'grey30')+
+    add_phylopic(name='Physeter macrocephalus', x=0.45, y=4.5, width = size*10, alpha=1, fill = 'grey30', horizontal=TRUE)+
     add_phylopic(name='Hyperoodon ampullatus', x=0.45, y=14, width = size*7, alpha=1, fill = 'grey30')+
     add_phylopic(name='Inia geoffrensis', x=0.45, y=22.75, width = size*2.5, alpha=1, fill = 'grey30')+
     add_phylopic(name='Phocoenoides dalli', x=0.45, y=28.75, width = size*2.1, alpha=1, fill = 'grey30')+
@@ -1085,10 +1121,10 @@ trait_change_plot_exclude <- function(fit, exclude) {
     geom_density(aes(fill=response, color=response), alpha=0.6) +
     geom_vline(xintercept = 0, color="black", linetype='dashed', lwd=0.8) +
     annotate("text",
-             label = bquote(bold(.(lab2) %->% .(lab1)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(p_direction(df[response == var1, X1.delta_theta]), 2))),
+             label = as.expression(bquote(bold(.(lab2) %->% .(lab1)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(as.numeric(p_direction(df[response == var1, X1.delta_theta])), 2)))),
              x = -Inf, y = Inf, hjust = -0.1, vjust = 2, size = 4, color = plot_cols[1]) +
     annotate("text",
-             label = bquote(bold(.(lab1) %->% .(lab2)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(p_direction(df[response == var2, X1.delta_theta]), 2))),
+             label = as.expression(bquote(bold(.(lab1) %->% .(lab2)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(as.numeric(p_direction(df[response == var2, X1.delta_theta])), 2)))),
              x = -Inf, y = Inf, hjust = -0.1, vjust = 4, size = 4, color = plot_cols[2]) +
     theme_minimal() +
     scale_x_continuous(limits=c(-20,20)) +
@@ -1154,10 +1190,10 @@ trait_change_plot <- function(fit) {
     geom_density(aes(fill=response, color=response), alpha=0.6) +
     geom_vline(xintercept = 0, color="black", linetype='dashed', lwd=0.8) +
     annotate("text",
-             label = bquote(bold(.(lab2) %->% .(lab1)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(p_direction(df[response == var1, X1.delta_theta]), 2))),
+             label = as.expression(bquote(bold(.(lab2) %->% .(lab1)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(as.numeric(p_direction(df[response == var1, X1.delta_theta])), 2)))),
              x = -Inf, y = Inf, hjust = -0.1, vjust = 2, size = 4, color = plot_cols[2]) +
     annotate("text",
-             label = bquote(bold(.(lab1) %->% .(lab2)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(p_direction(df[response == var2, X1.delta_theta]), 2))),
+             label = as.expression(bquote(bold(.(lab1) %->% .(lab2)) ~ ", " ~ italic(p)[dir] ~ "=" ~ .(round(as.numeric(p_direction(df[response == var2, X1.delta_theta])), 2)))),
              x = -Inf, y = Inf, hjust = -0.1, vjust = 4, size = 4, color = plot_cols[1]) +
     theme_minimal() +
     scale_x_continuous(limits=c(-20,20)) +
@@ -1588,6 +1624,187 @@ custom_coev_plot_flowfield <- function(object, var1, var2, nullclines,
 
   return(p)
 }
+
+
+
+
+# Extract posterior summary for a single fixed effect ----------------------
+extract_coef_summary <- function(fit, coef) {
+  
+  draws <- as_draws_df(fit)[[coef]]
+  if (is.null(draws)) stop(paste0("Coefficient '", coef, "' not found in model (check b_scale naming)."))
+  
+  data.table(
+    median = median(draws),
+    ll50   = as.numeric(quantile(draws, 0.25)),
+    ul50   = as.numeric(quantile(draws, 0.75)),
+    ll90   = as.numeric(quantile(draws, 0.05)),
+    ul90   = as.numeric(quantile(draws, 0.95))
+  )
+  
+}
+# fit <- tar_read(m1q)
+# coef <- 'b_scalelifespan_Post.Mean_F'
+
+
+
+# Build table of coefficients across traits x robustness variants ----------
+robustness_coef_table <- function(trait_vars, trait_labels, baseline_models, ns_models, dur_models) {
+  
+  variant_labels <- c('Baseline', '+ Network size', '+ Duration')
+  
+  out <- list()
+  for (i in seq_along(trait_vars)) {
+    
+    coef_name <- paste0('b_scale', trait_vars[i])
+    fits <- list(baseline_models[[i]], ns_models[[i]], dur_models[[i]])
+    
+    for (j in seq_along(fits)) {
+      s <- extract_coef_summary(fits[[j]], coef_name)
+      s[, trait := trait_labels[i]]
+      s[, variant := variant_labels[j]]
+      out[[length(out) + 1]] <- s
+    }
+  }
+  
+  d <- rbindlist(out)
+  
+  # Trait order top-to-bottom in facets = order given in trait_labels
+  d[, trait := factor(trait, levels = trait_labels)]
+  # Variant order bottom-to-top within a facet: Duration, Network size, Baseline (so Baseline ends up on top)
+  d[, variant := factor(variant, levels = rev(variant_labels))]
+  
+  return(d)
+  
+}
+# trait_vars <- c('lifespan_Post.Mean_F', 'age.mat_F')
+# trait_labels <- c('Lifespan', 'Age at maturity')
+# baseline_models <- list(tar_read(m1q), tar_read(m2q))
+# ns_models <- list(tar_read(ns_m1q), tar_read(ns_m2q))
+# dur_models <- list(tar_read(dur_m1q), tar_read(dur_m2q))
+
+
+
+# Helper: symmetric x-axis limits centered on zero --------------------------
+symmetric_x_limits <- function(d, pad = 1.05) {
+  m <- max(abs(c(d$ll90, d$ul90)), na.rm = TRUE) * pad
+  c(-m, m)
+}
+
+
+
+# Forest plot of coefficients across robustness checks -----------------------
+plot_robustness_forest <- function(trait_vars, trait_labels, baseline_models, ns_models, dur_models,
+                                   x_lab = 'Standardized effect', title = NULL) {
+  
+  d <- robustness_coef_table(trait_vars, trait_labels, baseline_models, ns_models, dur_models)
+  
+  cols <- viridis(3, option = proj_color, begin = 0.15, end = 0.85)
+  names(cols) <- c('Baseline', '+ Network size', '+ Duration')
+  
+  ggplot(d, aes(y = variant, color = variant)) +
+    geom_vline(xintercept = 0, linetype = 'dashed', color = 'grey50') +
+    geom_errorbarh(aes(xmin = ll90, xmax = ul90), height = 0, linewidth = 0.6) +
+    geom_errorbarh(aes(xmin = ll50, xmax = ul50), height = 0, linewidth = 2.2) +
+    geom_point(aes(x = median), size = 2.3, color = 'black') +
+    scale_color_manual(values = cols, breaks = c('Baseline', '+ Network size', '+ Duration')) +
+    scale_x_continuous(limits = symmetric_x_limits(d)) +
+    facet_grid(trait ~ ., scales = 'free_y', space = 'free', switch = 'y') +
+    labs(x = x_lab, y = NULL, title = title)+
+    theme_classic() +
+    theme(strip.placement = 'outside',
+          strip.background = element_blank(),
+          strip.text.y.left = element_text(angle = 0, face = 'bold', size = 11),
+          axis.text.y = element_text(size = 10),
+          panel.spacing = unit(1.2, 'lines'),
+          legend.position = 'none',
+          plot.caption = element_text(size = 8, color = 'grey40'))
+  
+}
+# trait_vars <- c('lifespan_Post.Mean_F', 'age.mat_F', 'log_length_F', 'SSD')
+# trait_labels <- c('Lifespan', 'Age at maturity', 'Body length (log)', 'SSD')
+# baseline_models <- list(tar_read(m1q), tar_read(m2q), tar_read(m3q), tar_read(m4q))
+# ns_models <- list(tar_read(ns_m1q), tar_read(ns_m2q), tar_read(ns_m3q), tar_read(ns_m4q))
+# dur_models <- list(tar_read(dur_m1q), tar_read(dur_m2q), tar_read(dur_m3q), tar_read(dur_m4q))
+# plot_robustness_forest(trait_vars, trait_labels, baseline_models, ns_models, dur_models, title = 'Q')
+
+
+
+
+# Build table of control-variable coefficients across robustness models -----
+control_coef_table <- function(control_labels, control_coefs, model_lists, row_labels) {
+  
+  out <- list()
+  for (i in seq_along(control_labels)) {
+    
+    fits <- model_lists[[i]]
+    for (j in seq_along(fits)) {
+      s <- extract_coef_summary(fits[[j]], control_coefs[i])
+      s[, control := control_labels[i]]
+      s[, trait := row_labels[j]]
+      out[[length(out) + 1]] <- s
+    }
+  }
+  
+  d <- rbindlist(out)
+  
+  # Control-variable blocks ordered top-to-bottom as given
+  d[, control := factor(control, levels = control_labels)]
+  # Within a block, first row_label ends up on top
+  d[, trait := factor(trait, levels = rev(row_labels))]
+  
+  return(d)
+  
+}
+# control_labels <- c('Network size', 'Duration')
+# control_coefs  <- c('b_scalenetworkSize', 'b_scalestudyDuration')
+# row_labels     <- c('Lifespan', 'Age at maturity', 'Body length', 'SSD')
+# model_lists <- list(list(tar_read(ns_m1q), tar_read(ns_m2q), tar_read(ns_m3q), tar_read(ns_m4q)),
+#                      list(tar_read(dur_m1q), tar_read(dur_m2q), tar_read(dur_m3q), tar_read(dur_m4q)))
+
+
+
+# Forest plot of control-variable effects across robustness models ----------
+plot_control_forest <- function(control_labels, control_coefs, model_lists, row_labels,
+                                x_lab = 'Standardized effect', title = NULL) {
+  
+  d <- control_coef_table(control_labels, control_coefs, model_lists, row_labels)
+  
+  cols <- viridis(length(row_labels), option = proj_color, begin = 0.1, end = 0.9)
+  names(cols) <- row_labels
+  
+  ggplot(d, aes(y = trait, color = trait)) +
+    geom_vline(xintercept = 0, linetype = 'dashed', color = 'grey50') +
+    geom_errorbarh(aes(xmin = ll90, xmax = ul90), height = 0, linewidth = 0.6) +
+    geom_errorbarh(aes(xmin = ll50, xmax = ul50), height = 0, linewidth = 2.2) +
+    geom_point(aes(x = median), size = 2.3, color = 'black') +
+    scale_color_manual(values = cols, breaks = row_labels) +
+    scale_x_continuous(limits = symmetric_x_limits(d)) +
+    facet_grid(control ~ ., scales = 'free_y', space = 'free', switch = 'y') +
+    labs(x = x_lab, y = NULL, title = title)+
+    theme_classic() +
+    theme(strip.placement = 'outside',
+          strip.background = element_blank(),
+          strip.text.y.left = element_text(angle = 0, face = 'bold', size = 11),
+          axis.text.y = element_text(size = 10),
+          panel.spacing = unit(1.2, 'lines'),
+          legend.position = 'none',
+          plot.caption = element_text(size = 8, color = 'grey40'))
+  
+}
+
+
+# Combined Q + S panel -------------------------------------------------------
+plot_control_lifehistory_QS <- function(control_labels, control_coefs, row_labels,
+                                        model_lists_Q, model_lists_S) {
+  
+  pQ <- plot_control_forest(control_labels, control_coefs, model_lists_Q, row_labels, title = 'Q (Modularity)')
+  pS <- plot_control_forest(control_labels, control_coefs, model_lists_S, row_labels, title = 'S (Social differentiation)')
+  
+  pQ | pS
+  
+}
+
 
 
 

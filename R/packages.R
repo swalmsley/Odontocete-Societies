@@ -34,7 +34,6 @@ suppressPackageStartupMessages({
 
   library(TreeTools)
   library(Rphylopars)
-  library(rphylopic)
   library(lavaan)
   library(coevolve)
   library(phylobase)
@@ -54,62 +53,66 @@ suppressPackageStartupMessages({
   library(rnaturalearth)
   library(rnaturalearthdata)
   library(sf)
-  library(stantargets)
   library(rbbt)
+  library(rphylopic)
+  
   
   # If packages need to be installed 
   
   # install.packages(c(
-  #   "targets", 
-  #   "tarchetypes", 
-  #   "rbbt", 
-  #   "quarto", 
-  #   "patchwork", 
-  #   "rempsyc", 
-  #   "ggplot2", 
-  #   "data.table", 
-  #   "crew", 
-  #   "cmdstanr", 
-  #   "ape", 
-  #   "rethinking", 
-  #   "bayesplot", 
-  #   # "stantargets", 
-  #   "phangorn", 
-  #   "ggtree", 
-  #   "brms", 
-  #   "stringr", 
-  #   "igraph", 
-  #   "tidybayes", 
-  #   "ggrepel", 
-  #   "ggdist", 
-  #   "readxl", 
-  #   "viridis", 
-  #   "testthat", 
-  #   "mice", 
-  #   "phytools", 
-  #   "sjPlot", 
-  #   "stringi", 
-  #   "tidyr", 
-  #   "rnaturalearth", 
-  #   "rnaturalearthdata", 
-  #   "sf", 
-  #   "TreeTools", 
-  #   "Rphylopars", 
-  #   "rphylopic", 
-  #   "lavaan", 
-  #   "coevolve", 
-  #   "phylobase", 
-  #   "bayestestR", 
-  #   "ggraph", 
-  #   "ggridges", 
-  #   "blavaan", 
-  #   "dplyr", 
-  #   "tibble", 
+  #   "targets",
+  #   "tarchetypes",
+  #   "rbbt",
+  #   "quarto",
+  #   "patchwork",
+  #   "rempsyc",
+  #   "ggplot2",
+  #   "data.table",
+  #   "crew",
+  #   "cmdstanr",
+  #   "ape",
+  #   "rethinking",
+  #   "bayesplot",
+  #   # "stantargets",
+  #   "phangorn",
+  #   "ggtree",
+  #   "brms",
+  #   "stringr",
+  #   "igraph",
+  #   "tidybayes",
+  #   "ggrepel",
+  #   "ggdist",
+  #   "readxl",
+  #   "viridis",
+  #   "testthat",
+  #   "mice",
+  #   "phytools",
+  #   "sjPlot",
+  #   "stringi",
+  #   "tidyr",
+  #   "rnaturalearth",
+  #   "rnaturalearthdata",
+  #   "sf",
+  #   "TreeTools",
+  #   "Rphylopars",
+  #   "rphylopic",
+  #   "lavaan",
+  #   "coevolve",
+  #   "phylobase",
+  #   "bayestestR",
+  #   "ggraph",
+  #   "ggridges",
+  #   "blavaan",
+  #   "dplyr",
+  #   "tibble",
   #   "marinelifehistdata"
   # ))
   # install.packages("cmdstanr", repos = c('https://stan-dev.r-universe.dev', getOption("repos")))
   # also devtools for rethinking
   # devtools::install_github("rmcelreath/rethinking")
+  
+  # remotes::install_github("samellisq/marinelifehistdata")
+  
   
   # if (!requireNamespace("BiocManager", quietly = TRUE))
   #   install.packages("BiocManager")
@@ -119,6 +122,9 @@ suppressPackageStartupMessages({
   # devtools::install_github("ropensci/rnaturalearthdata")
   # devtools::install_github("ScottClaessens/coevolve")
   # devtools::install_github("samellisq/marinelifehistdata")
+  
+  # remotes::install_github("paleolimbot/rbbt")
+  
   
 
 
